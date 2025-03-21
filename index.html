@@ -106,7 +106,6 @@
             border-radius: 10px;
         }
 
-        /* تحسين للجوال */
         @media (max-width: 600px) {
             .container {
                 padding: 20px;
@@ -143,12 +142,29 @@
         <div id="result"></div>
     </div>
 
+    <!-- إضافة مكتبة Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+
     <script>
-        let participants = [];
-        let assignedGifts = [];
+    const firebaseConfig = {
+        apiKey: "AIzaSyAFLgY2uAf3taY-B_rS1TRMKcTYy5OcFj4",
+        authDomain: "giftdraw-9ea24.firebaseapp.com",
+        databaseURL: "https://giftdraw-9ea24-default-rtdb.firebaseio.com",
+        projectId: "giftdraw-9ea24",
+        storageBucket: "giftdraw-9ea24.firebasestorage.app",
+        messagingSenderId: "1016236889699",
+        appId: "1:1016236889699:web:ec2a4e240a5d66aa6b0a56",
+        measurementId: "G-GG9S3CKHKP"
+};
+
+        // تهيئة Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
         const allGirls = ['توفي', 'لولي', 'دانة', 'ريماس', 'سوسي', 'شيما', 'جنو'];
 
-        function drawGift() {
+        async function drawGift() {
             const nameInput = document.getElementById('nameInput').value.trim();
             const resultDiv = document.getElementById('result');
 
@@ -157,18 +173,28 @@
                 return;
             }
 
-            if (participants.includes(nameInput)) {
-                resultDiv.innerHTML = 'لقد شاركتِ مسبقاً!';
-                return;
-            }
-
             if (!allGirls.includes(nameInput)) {
                 resultDiv.innerHTML = 'اسمك غير موجود في القائمة!';
                 return;
             }
 
-            participants.push(nameInput);
-            
+            // جلب البيانات من Firebase
+            const participantsRef = db.ref('participants');
+            const assignedGiftsRef = db.ref('assignedGifts');
+            const snapshot = await participantsRef.once('value');
+            const participants = snapshot.val() || {};
+
+            // التحقق إذا كان الاسم موجود مسبقاً
+            if (participants[nameInput]) {
+                resultDiv.innerHTML = `لقد شاركتِ مسبقاً! هديتك لـ ${participants[nameInput].gift}`;
+                return;
+            }
+
+            // جلب قائمة الهدايا الموزعة
+            const giftsSnapshot = await assignedGiftsRef.once('value');
+            let assignedGifts = giftsSnapshot.val() || [];
+
+            // فلترة الأسماء المتاحة
             let availableGirls = allGirls.filter(girl => 
                 girl !== nameInput && !assignedGifts.includes(girl)
             );
@@ -178,19 +204,23 @@
                 return;
             }
 
+            // اختيار اسم عشوائي
             const randomIndex = Math.floor(Math.random() * availableGirls.length);
             const winner = availableGirls[randomIndex];
 
-            assignedGifts.push(winner);
+            // حفظ النتيجة في Firebase
+            await participantsRef.child(nameInput).set({ gift: winner });
+            await assignedGiftsRef.set([...assignedGifts, winner]);
 
             resultDiv.innerHTML = `مبروك ${nameInput}! هديتك لـ ${winner}`;
-            
             document.getElementById('nameInput').value = '';
         }
 
-        function resetDraw() {
-            participants = [];
-            assignedGifts = [];
+        async function resetDraw() {
+            // إعادة تعيين البيانات في Firebase
+            await db.ref('participants').remove();
+            await db.ref('assignedGifts').remove();
+
             document.getElementById('result').innerHTML = 'تم إعادة التعيين! ابدئي من جديد.';
             document.getElementById('nameInput').value = '';
         }
